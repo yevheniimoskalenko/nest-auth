@@ -9,16 +9,9 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
-@Controller('users')
+@Controller('api/users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
-
-  @Get()
-  @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard)
-  findAll() {
-    return this.usersService.findAll();
-  }
 
   @Get('me')
   @ApiBearerAuth('JWT-auth')
@@ -26,7 +19,14 @@ export class UsersController {
   async findMe(@Req() req) {
     try {
       const user = await this.usersService.findMe(req.user.id);
-      return { data: user };
+      return {
+        data: {
+          id: user?._id,
+          email: user?.email,
+          firstName: user?.firstName,
+          lastName: user?.lastName,
+        },
+      };
     } catch (err) {
       throw new BadRequestException(err);
     }

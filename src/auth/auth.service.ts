@@ -29,7 +29,7 @@ export class AuthService {
     }
   }
 
-  async update(id, token: string) {
+  async update(id, token: string): Promise<any> {
     try {
       const updateToken = await this.tokensModel.findOne({ user: id });
       if (updateToken) {

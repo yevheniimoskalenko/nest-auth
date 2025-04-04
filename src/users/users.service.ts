@@ -3,37 +3,47 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Model } from 'mongoose';
+import { Model, ObjectId } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
-import { ObjectId } from 'mongodb';
 import { Users } from './entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+
+interface JwtTokens {
+  access_token: string;
+  refresh_token: string;
+}
+
+type UserJwt = {
+  id: any;
+  email: string;
+  firstName: string;
+  lastName: string;
+};
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(Users.name) private usersModel: Model<Users>,
-    // private readonly users: Repository<Users>,
-    // @InjectModel(Users) private users: Model<Users>,
     private readonly JwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
-  async hashPassword(password: string): Promise<string | null> {
+  async hashPassword(password: string) {
     const salt = await bcrypt.genSalt(5);
-    return await bcrypt.hash(password, salt);
+    return bcrypt.hash(password, salt);
   }
-  async checkPassword(password: string, hashPassword: string) {
-    return await bcrypt.compare(password, hashPassword);
+  checkPassword(password: string, hashPassword: string) {
+    return bcrypt.compare(password, hashPassword);
   }
   async create(createUserDto: CreateUserDto): Promise<Users> {
     try {
       const password = await this.hashPassword(createUserDto.password);
-
       const user = new this.usersModel({
         ...createUserDto,
-        password: password,
+        password,
       });
       return await user.save();
     } catch (err) {
@@ -41,11 +51,7 @@ export class UsersService {
     }
   }
 
-  async findAll() {
-    // return await this.users.find();
-  }
-
-  async findByEmail(email: string) {
+  async findByEmail(email: string): Promise<Users | null> {
     try {
       return await this.usersModel.findOne({ email: email });
     } catch (err) {
@@ -53,17 +59,15 @@ export class UsersService {
     }
   }
 
-  public async generateJwtToken(
-    user,
-  ): Promise<{ access_token: string; refresh_token: string }> {
+  public generateJwtToken(user: Partial<UserJwt>): JwtTokens {
     try {
       const payload = { ...user };
-      const access_token = await this.JwtService.sign(payload, {
+      const access_token = this.JwtService.sign(payload, {
         secret: 'secret',
         expiresIn: '15m',
       });
 
-      const refresh_token = await this.JwtService.sign(payload, {
+      const refresh_token = this.JwtService.sign(payload, {
         secret: 'extraSecret',
         expiresIn: '30d',
       });
@@ -74,7 +78,7 @@ export class UsersService {
     }
   }
 
-  async findMe(userId) {
+  async findMe(userId): Promise<Users | null> {
     try {
       return await this.usersModel.findOne(
         { _id: userId },

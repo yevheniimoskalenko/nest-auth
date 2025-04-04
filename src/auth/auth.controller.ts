@@ -13,7 +13,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
 
-@Controller('auth')
+@Controller('api/auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -21,28 +21,30 @@ export class AuthController {
   ) {}
 
   @Post('sign-up')
-  async signUp(@Body() createAuthDto: CreateAuthDto) {
+  private async signUp(@Body() createAuthDto: CreateAuthDto) {
     try {
       const candidate = await this.usersService.findByEmail(
         createAuthDto.email,
       );
 
-      if (candidate) throw new BadRequestException('user not found');
+      if (candidate) throw new BadRequestException('user was found');
       const user = await this.usersService.create(createAuthDto);
 
       const tokens = await this.usersService.generateJwtToken({
         id: user._id,
         email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
       });
       await this.authService.saveToken(user._id, tokens.refresh_token);
-      return { user, data: { ...tokens } };
+      return { user, data: tokens };
     } catch (err) {
       throw new BadRequestException(err);
     }
   }
 
   @Post('sign-in')
-  async signIn(@Body() createAuthDto: CreateAuthDto) {
+  private async signIn(@Body() createAuthDto: CreateAuthDto) {
     try {
       const candidate = await this.usersService.findByEmail(
         createAuthDto.email,
@@ -58,7 +60,11 @@ export class AuthController {
             email: candidate.email,
           });
           await this.authService.update(candidate._id, tokens.refresh_token);
-          return { user: candidate, data: { ...tokens } };
+          return {
+            data: {
+              tokens: { ...tokens },
+            },
+          };
         } else {
           throw new BadRequestException('password is incorrect');
         }
@@ -75,8 +81,6 @@ export class AuthController {
     try {
       const { refresh_token } = req.cookies;
       await this.usersService.logout(refresh_token);
-      res.clearCookie('refresh_token');
-      res.clearCookie('access_token');
       res.json({});
     } catch (e) {
       throw new BadRequestException(e.message);
@@ -91,15 +95,17 @@ export class AuthController {
       if (!userFromDB || !userData) {
         throw new UnauthorizedException('user not found or smth error');
       }
-      const tokens = await this.usersService.generateJwtToken({
+      const tokens = this.usersService.generateJwtToken({
         id: userFromDB._id,
         email: userFromDB.email,
+        firstName: userFromDB.firstName,
+        lastName: userFromDB.lastName,
       });
 
       await this.authService.update(userFromDB._id, tokens.refresh_token);
       res.status(200).json({
         data: {
-          tokens: { ...tokens },
+          tokens,
         },
       });
     } catch (e) {

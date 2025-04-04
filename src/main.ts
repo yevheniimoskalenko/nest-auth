@@ -1,6 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { config as dotenvConfig } from 'dotenv';
+
+// Load environment variables based on NODE_ENV
+const envFile = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env';
+dotenvConfig({ path: envFile });
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -22,7 +27,11 @@ async function bootstrap() {
     )
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, documentFactory);
-  await app.listen(process.env.PORT ?? 3000);
+  SwaggerModule.setup('/api/docs', app, documentFactory);
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
+  await app.listen(process.env.PORT || 6000);
 }
 bootstrap();
